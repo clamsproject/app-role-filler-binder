@@ -1,17 +1,36 @@
-# Role-Filler Binder (RFB)
+# Role Filler Binder
 
-## Installation
+## Description
+
+This app implements Role-Filler Binding (RFB) on text using a combination of NER and rule-based string parsing.
+
+Roles and Fillers are analogous to key-value pairs, where the key (role) may correspond to a job title (e.g. Executive Producer),
+and the value (filler) corresponds to the named entity mention(s) filling that position. Binding applies an explicit relation between the two.
+
+The current release of RFB uses a [fine-tuned Bert-Base-Cased model](https://huggingface.co/clamsproject/bert-base-cased-ner-rfb)
+to classify role/filler tokens and employs heuristic methods to determine relations between them.
+The intended target is OCR text extracted from visual media sources using upstream CLAMS apps, and the output is formatted
+as a raw CSV string.
+
+## User instruction
+
+General user instructions for CLAMS apps is available at [CLAMS Apps documentation](https://apps.clams.ai/clamsapp).
+
+Below is a list of additional information specific to this app.
+
+### System requirements
+
+- Requires Python3 with `clams-python`, `mmif-python` and their dependencies installed, to run the app locally.
+- Requires `transformers` for model inference.
+- Requires an HTTP client utility (such as `curl`) to invoke and execute analysis.
+- Recommends GPU to run at a reasonable speed.
 
 Run `pip install requirements.txt` to install app requirements.
 
-## Model
+#### To run in a container
 
-The model used for this task is a bert-base-cased model fine-tuned on a custom dataset. It currently only performs the NER step of role-filler binding, and relies on a follow-up heuristic algorithm for grouping fillers with their respective roles. The current model checkpoint may be loaded from HuggingFace at `clamsproject/bert-base-cased-ner-rfb`.
+- Requires `docker` to run the app in a Docker container (as an HTTP server).
 
-The model may be traiend by running:
+### Configurable runtime parameter
 
-```bash
-python run_ner.py args.json
-```
-
-Make any changes to `args.json` as needed. Ensure that it is in the same directory when running, and that it correctly points to the relevant train/val/test JSONL files. The script handles both training and evaluation (reporting PRF metrics).
+For the full list of parameters, please refer to the app metadata from [CLAMS App Directory](https://apps.clams.ai) or [`metadata.py`](metadata.py) file in this repository.

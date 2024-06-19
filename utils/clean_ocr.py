@@ -1,7 +1,7 @@
 """
 Utility functions for cleaning OCR data.
 """
-
+from typing import List
 import pandas as pd
 
 
@@ -15,7 +15,7 @@ def has_alpha(string: str) -> bool:
     return any(char.isalpha() for char in string)
 
 
-def clean_ocr(text_document: str) -> list[str]:
+def clean_ocr(text_document: str) -> List[str]:
     """Cleans ocr text document"""
     allowable_chars = {r'&'}
     cleaned = []
