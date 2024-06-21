@@ -3,6 +3,8 @@ from collections import defaultdict
 
 tokenizer = AutoTokenizer.from_pretrained("clamsproject/bert-base-cased-ner-rfb")
 model = AutoModelForTokenClassification.from_pretrained("clamsproject/bert-base-cased-ner-rfb")
+tagger = pipeline("token-classification", model=model, tokenizer=tokenizer, device_map="auto",
+                  aggregation_strategy="first")
 
 
 def parse_sequence_tags(phrases, scene_type):
@@ -10,7 +12,7 @@ def parse_sequence_tags(phrases, scene_type):
     Parses an RFB string and returns a dictionary of role-fillers.
 
     Args:
-        phrases (list[str]): An list of tag-token tuples
+        phrases (list[tuple[str, str]): An list of tag-token tuples
         scene_type (str): The scene classification label (e.g. "credits")
     """
 
@@ -38,25 +40,26 @@ def parse_sequence_tags(phrases, scene_type):
             bindings[cur_role] = cur_fillers if cur_role not in bindings \
                 else bindings[cur_role] + cur_fillers
 
-        return dict(bindings)
+        bindings = [{"Role": role, "Filler": filler} for role, fillers in bindings.items() for filler in fillers]
+        return bindings
 
     # If parsing doesn't work, the string is either invalid or empty (EAFP)
     except Exception as e:
         return {}
 
 
-def bind_role_fillers(ocr_results, scene_type):
+def bind_role_fillers(ocr_results, scene_type, clf=tagger):
     """
-    Runs model from a given checkpoint on OCR results and returns BIO-annoted string.
+    Runs model from a given checkpoint on OCR results and returns BIO-annotated string.
 
     Args:
+        clf (Pipeline): A HuggingFace pipeline for Token Classification
         ocr_results (str): OCR results from a video frame.
         scene_type (str): The type of scene, either "credits" or "chyron".
     """
 
     rfb_sent = f"{scene_type} {ocr_results}"
 
-    tagger = pipeline("token-classification", model=model, tokenizer=tokenizer, aggregation_strategy="simple")
-    outputs = tagger(rfb_sent)
-    words = [(entry["entity_group"], entry["word"]) for entry in outputs if not entry["word"].startswith("##")]
+    outputs = clf(rfb_sent)
+    words = [(entry["entity_group"], entry["word"]) for entry in outputs]
     return parse_sequence_tags(words, scene_type)

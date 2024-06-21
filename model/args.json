@@ -4,7 +4,7 @@
   "test_file": "rfb_test.json",
   "text_column_name": "tokens",
   "label_column_name": "labels",
-  "model_name_or_path": "./model_out",
+  "model_name_or_path": "clamsproject/bert-base-cased-ner-rfb",
   "max_seq_length": 256,
   "pad_to_max_length": true,
   "output_dir": "./model_out",

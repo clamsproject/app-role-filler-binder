@@ -32,6 +32,7 @@ class RoleFillerBinder(ClamsApp):
 
     def _annotate(self, mmif: Mmif, **parameters) -> Mmif:
         # see https://sdk.clams.ai/autodoc/clams.app.html#clams.app.ClamsApp._annotate
+        self.logger.debug(f"Parameters: {parameters}")
         if not isinstance(mmif, Mmif):
             mmif = Mmif(mmif)
         views2alignments = mmif.get_alignments(AnnotationTypes.TimePoint, DocumentTypes.TextDocument)
@@ -41,17 +42,22 @@ class RoleFillerBinder(ClamsApp):
         rfb_view.new_contain(AnnotationTypes.Alignment)
         for view_id in views2alignments:
             for alignment in views2alignments[view_id]:
-                _, source = alignment.get("source").split(alignment.id_delimiter)
+                source = alignment.get("source")
                 target = alignment.get("target")
+                if alignment.id_delimiter not in source:
+                    source = alignment.id_delimiter.join((view_id, source))
+                if alignment.id_delimiter not in target:
+                    target = alignment.id_delimiter.join((view_id, target))
                 if {mmif[source].at_type, mmif[target].at_type} != {AnnotationTypes.TimePoint,
                                                                     DocumentTypes.TextDocument}:
                     self.logger.debug(f"Skipping unexpected alignment, source: {source}, target: {target}")
                     continue
-                if mmif[source].at_type == AnnotationTypes.TimePoint and mmif[target] == DocumentTypes.TextDocument:
+                if (mmif[source].at_type == AnnotationTypes.TimePoint
+                        and mmif[target].at_type == DocumentTypes.TextDocument):
                     tp, td = mmif[source], mmif[target]
                 else:
                     tp, td = mmif[target], mmif[source]
-                if tp.get("labelset") is None or {'I', 'Y', 'N', 'C', 'R'} not in set(tp.get("labelset")):
+                if tp.get("labelset") is None or not {'I', 'Y', 'N', 'C', 'R'}.issubset(set(tp.get("labelset"))):
                     self.logger.debug(f"Skipping TimePoint with unexpected labelset: {tp.get('labelset')}.")
                     continue
                 scene_type = tp.get("label")
@@ -60,8 +66,11 @@ class RoleFillerBinder(ClamsApp):
                 elif scene_type in {"C", "R"}:
                     ftype = "credits"
                 else:
-                    self.logger.debug(f"Skipping TimePoint `{tp.long_id}` which has an unsupported scene type: `{scene_type}`")
+                    self.logger.debug(f"Skipping TimePoint `{tp.long_id}` which has an unsupported scene type:"
+                                      f" `{scene_type}`")
                     continue
+                self.logger.debug(f"Processing {ftype.upper()} TextDocument `{td.long_id}`, anchored to TimePoint"
+                                  f" `{tp.long_id}`")
                 ocr_text = rf'{td.text_value}'
                 input_seq = " ".join(clean_ocr(ocr_text))
                 parsed = bind_role_fillers(input_seq, ftype)
