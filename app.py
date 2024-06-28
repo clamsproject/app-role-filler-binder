@@ -39,59 +39,41 @@ class RoleFillerBinder(ClamsApp):
         if not isinstance(mmif, Mmif):
             mmif = Mmif(mmif)
 
+        # TODO: Add support for user-defined labels.
+        #  However, they MUST map to tokens the RFB model has been trained on.
+        labelmap = {'I': 'chyron', 'N': 'chyron', 'Y': 'chyron', 'C': 'credits', 'R': 'credits'}
+
         rfb_view = mmif.new_view()
         self.sign_view(rfb_view, parameters)
         rfb_view.new_contain(DocumentTypes.TextDocument)
         rfb_view.new_contain(AnnotationTypes.Alignment)
 
-        label_map = metadata.labelMapPresets.get(parameters['labelMapPreset'])
-        label_map = dict([lm.split(':') for lm in label_map])
-        self.logger.debug(f"Label map: {label_map}")
-
-        views2alignments = mmif.get_alignments(AnnotationTypes.TimePoint, DocumentTypes.TextDocument)
-
-        for view_id in views2alignments:
-            for alignment in views2alignments[view_id]:
-                source = alignment.get("source")
-                target = alignment.get("target")
-                # ensure that these are the long_id format
-                if alignment.id_delimiter not in source:
-                    source = alignment.id_delimiter.join((view_id, source))
-                if alignment.id_delimiter not in target:
-                    target = alignment.id_delimiter.join((view_id, target))
-
-                if {mmif[source].at_type, mmif[target].at_type} != {AnnotationTypes.TimePoint,
-                                                                    DocumentTypes.TextDocument}:
-                    self.logger.debug(f"Skipping unexpected alignment, source: {source}, target: {target}")
-                    continue
-                if (mmif[source].at_type == AnnotationTypes.TimePoint
-                        and mmif[target].at_type == DocumentTypes.TextDocument):
-                    tp, td = mmif[source], mmif[target]
-                else:
-                    tp, td = mmif[target], mmif[source]
-                if tp.get("labelset") is None or not set(label_map.keys()).issubset(set(tp.get("labelset"))):
-                    self.logger.debug(f"Skipping TimePoint with unexpected labelset: {tp.get('labelset')}.")
-                    continue
-                scene_type = label_map[tp.get("label")]
-                if scene_type not in {"chyron", "credits"}:
-                    self.logger.debug(f"Skipping TimePoint `{tp.long_id}` which has an unsupported scene type:"
-                                      f" `{scene_type}`")
-                    continue
-                self.logger.debug(f"Processing {scene_type.upper()} TextDocument `{td.long_id}`, anchored to TimePoint"
-                                  f" `{tp.long_id}`")
-                ocr_text = rf'{td.text_value}'
-                input_seq = " ".join(clean_ocr(ocr_text))
-                parsed = bind_role_fillers(input_seq, scene_type)
-                self.logger.debug(f"Found {len(parsed)} Role-Filler pairs.")
-                if not parsed:
-                    continue
-                else:
-                    csv_string = pd.DataFrame.from_dict(parsed).to_csv()
-                    doc = rfb_view.new_textdocument(text=csv_string)
-                    rfb_view.new_annotation(
-                        at_type=AnnotationTypes.Alignment, source=alignment.long_id, target=doc.long_id
-                    )
-                    self.logger.debug(f"Created annotation {doc.long_id} aligned with {alignment.long_id}")
+        for view in mmif.get_all_views_contain(AnnotationTypes.TimePoint):
+            for tp_ann in view.get_annotations(AnnotationTypes.TimePoint):
+                for aligned in tp_ann.get_all_aligned():
+                    if aligned.at_type == DocumentTypes.TextDocument:
+                        td_ann = aligned
+                        tp_label = tp_ann.get('label')
+                        self.logger.debug(f"Found a TextDocument `{td_ann.long_id}`"
+                                          f" anchored to TimePoint `{tp_ann.long_id}` labeled `{tp_label}`")
+                        if tp_label in labelmap.keys():
+                            scene: str = labelmap[tp_label]
+                            self.logger.debug(f"Processing {scene.upper()} TextDocument `{td_ann.long_id}` ")
+                            ocr_text = rf'{td_ann.text_value}'
+                            input_seq = " ".join(clean_ocr(ocr_text))
+                            parsed = bind_role_fillers(input_seq, scene)
+                            self.logger.debug(f"Found {len(parsed)} Role-Filler pairs.")
+                            if not parsed:
+                                continue
+                            else:
+                                csv_string = pd.DataFrame.from_dict(parsed).to_csv()
+                                new_doc = rfb_view.new_textdocument(text=csv_string)
+                                rfb_view.new_annotation(
+                                    at_type=AnnotationTypes.Alignment, source=td_ann.long_id, target=new_doc.long_id
+                                )
+                                self.logger.debug(
+                                    f"Created annotation `{new_doc.long_id}` anchored to `{td_ann.long_id}`"
+                                )
         return mmif
 
 
