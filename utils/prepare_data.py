@@ -1,7 +1,16 @@
 """
-Prepare rfb dataset for token classification task.
+Prepare curated annotation dataset for ner token classification task.
+The input file is expected to be a csv with the following columns: ['guid', 'scene_label', 'cleaned_text', 'labels']
+
+An exception will be raised if for any row, the number of tokens in 'cleaned_text' does not match the number of tags
+in 'labels'.
+
+Outputs 3 json files for train/val/test data partitions.
+
+Usage: python3 prepare_data.py --data path/to/data.csv
 """
 
+import argparse
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
@@ -29,23 +38,24 @@ def get_labels(silver_annotation: str):
 
 
 if __name__ == '__main__':
-    original_df = pd.read_csv('rfb_data.csv')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data', type=str, required=True, help='Path to annotation csv file')
+    args = parser.parse_args()
+
+    original_df = pd.read_csv(args.data)
     tokens = original_df['scene_label'] + " " + original_df['cleaned_text']
     tokens = tokens.map(get_tokens)
-    labels = original_df['silver_standard_annotation'].map(get_labels).tolist()
-    labels = [['O'] + label_seq for label_seq in labels]
+    labels = original_df['labels'].map(get_labels).tolist()
+    labels = [['O'] + label_seq for label_seq in labels]  # first element will be the scene classification
     for idx, tok_seq in enumerate(tokens):
         lab_seq = labels[idx]
-        # sanity check to make sure token and tag seqs are the same length
-        if len(lab_seq) != len(tok_seq):
-            print("Length of tokens does not match length of labels: ",
-                  len(labels[idx]), len(tok_seq),
-                  )
-            print(tok_seq, lab_seq)
+        # require the token and tag seqs to be the same length
+        assert len(lab_seq) == len(tok_seq), \
+            (f"Length of tokens ({len(tok_seq)}) does not match length of labels ({len(lab_seq)}):\n"
+             f"({tok_seq}, {lab_seq})")
     output_df = pd.DataFrame(data={"tokens": tokens, "labels": labels})
     train, val = train_test_split(output_df, test_size=0.2, random_state=42)
-    train.to_json('rfb_train.json', orient='records', lines=True)
+    train.to_json('../model_in_data/rfb_train.json', orient='records', lines=True)
     val, test = train_test_split(val, test_size=0.5, random_state=42)
-    val.to_json('rfb_val.json', orient='records', lines=True)
-    test.to_json('rfb_test.json', orient='records', lines=True)
-
+    val.to_json('../model_in_data/rfb_val.json', orient='records', lines=True)
+    test.to_json('../model_in_data/rfb_test.json', orient='records', lines=True)
