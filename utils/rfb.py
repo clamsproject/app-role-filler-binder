@@ -7,13 +7,16 @@ tagger = pipeline("token-classification", model=model, tokenizer=tokenizer, devi
                   aggregation_strategy="first")
 
 
-def parse_sequence_tags(phrases, scene_type):
+def parse_sequence_tags(phrases, scene_type) -> list[dict]:
     """
     Parses an RFB string and returns a dictionary of role-fillers.
 
     Args:
         phrases (list[tuple[str, str]): An list of tag-token tuples
         scene_type (str): The scene classification label (e.g. "credits")
+
+    Returns:
+        dict: A dictionary of role-fillers in format [{"Role": role, "Filler": filler}]
     """
 
     try:
@@ -40,8 +43,10 @@ def parse_sequence_tags(phrases, scene_type):
             bindings[cur_role] = cur_fillers if cur_role not in bindings \
                 else bindings[cur_role] + cur_fillers
 
-        bindings = [{"Role": role, "Filler": filler} for role, fillers in bindings.items() for filler in fillers]
-        return bindings
+        binding_pairs = [{"Role": role, "Filler": filler} for role, fillers in bindings.items() for filler in fillers]
+        # Account for empty fillers
+        binding_pairs += [{"Role": role, "Filler": ""} for role, fillers in bindings.items() if len(fillers) == 0]
+        return binding_pairs
 
     # If parsing doesn't work, the string is either invalid or empty (EAFP)
     except Exception as e:
