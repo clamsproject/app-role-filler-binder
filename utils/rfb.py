@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
 from collections import defaultdict
+from typing import List
 
 tokenizer = AutoTokenizer.from_pretrained("clamsproject/bert-base-cased-ner-rfb")
 model = AutoModelForTokenClassification.from_pretrained("clamsproject/bert-base-cased-ner-rfb")
@@ -7,16 +8,16 @@ tagger = pipeline("token-classification", model=model, tokenizer=tokenizer, devi
                   aggregation_strategy="first")
 
 
-def parse_sequence_tags(phrases, scene_type) -> list[dict]:
+def parse_sequence_tags(phrases, scene_type) -> List[dict]:
     """
-    Parses an RFB string and returns a dictionary of role-fillers.
+    Parses a list of NER label-mention pairs and returns a dictionary of role-fillers.
 
     Args:
-        phrases (list[tuple[str, str]): An list of tag-token tuples
+        phrases (List[tuple[str, str]): A list of tag-mention tuples
         scene_type (str): The scene classification label (e.g. "credits")
 
     Returns:
-        dict: A dictionary of role-fillers in format [{"Role": role, "Filler": filler}]
+        List[dict]: A list of dictionaries containing role-fillers in format [{"Role": role, "Filler": filler}]
     """
 
     try:
